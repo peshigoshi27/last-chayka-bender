@@ -1,4 +1,4 @@
-# The Last Chikiya Bender
+# Last Chayka Bender
 
 **Спасението на Деснислава — „Съдбата е в твоите ръце“**
 
@@ -10,7 +10,7 @@ Hand-tracking arcade wave game за **Meta Quest Pro**, направена с **
 
 ## Играй
 
-Изтегли APK от [Releases](https://github.com/peshigoshi27/the-last-chikiya-bender/releases). Това е **debug прототип 0.2.1**, не Store издание. Проектът е изпитван на Quest Pro; пълното физическо приемане на последната ревизия още предстои.
+Изтегли APK от [Releases](https://github.com/peshigoshi27/last-chayka-bender/releases). Това е **debug прототип 0.2.2**, не Store издание. Проектът е изпитван на Quest Pro; пълното физическо приемане на последната ревизия още предстои.
 
 Инсталирай със SideQuest или ADB, включи hand tracking и остави контролерите. Заглавието се появява автоматично. Насочи ръка към **„В БОЯ“** и щипни.
 
@@ -57,7 +57,7 @@ python3 tools/project.py build
 python3 tools/project.py install
 ```
 
-Build първо изпълнява тестовете, подготвя Android template от инсталираните Godot export templates, експортира и проверява APK. Ако template липсва, инсталирай го чрез **Project → Install Android Build Template**. Резултатът е `build/ChikiBender-Quest.apk`.
+Build първо изпълнява тестовете, подготвя Android template от инсталираните Godot export templates, експортира и проверява APK. Ако template липсва, инсталирай го чрез **Project → Install Android Build Template**. Резултатът е `build/LastChaykaBender-Quest.apk`.
 
 `install` използва ADB от `PATH`/Android SDK или променливата `ADB`. При няколко устройства задай `ANDROID_SERIAL`. На macOS има `BUILD.command`, `INSTALL.command`, `PREVIEW.command` за двоен клик.
 

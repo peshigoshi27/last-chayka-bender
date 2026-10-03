@@ -81,9 +81,9 @@ func _ready() -> void:
 			xr_interface.connect("session_stopping", _xr_focus.bind(false))
 			xr_interface.session_begun.connect(_xr_begun)
 			xr_interface.pose_recentered.connect(_recenter)
-		print("CHIKI XR READY hands-only")
+		print("CHAYKA XR READY hands-only")
 	else:
-		print("CHIKI DESKTOP " + ("DEMO" if desktop_demo else "NO XR - WAITING FOR HANDS"))
+		print("CHAYKA DESKTOP " + ("DEMO" if desktop_demo else "NO XR - WAITING FOR HANDS"))
 	hands = Hands.new()
 	hands.origin = xr_origin
 	add_child(hands)
@@ -128,7 +128,7 @@ func _ready() -> void:
 	muck_batch = _projectile_batch(32,Color("a1c641"))
 	rules.event.connect(_on_event)
 	show_intro()
-	print("CHIKI READY: intro -> menu -> five waves -> result; no controller bindings")
+	print("CHAYKA READY: intro -> menu -> five waves -> result; no controller bindings")
 
 func _xr_focus(value: bool) -> void:
 	focus_ok = value
@@ -139,7 +139,7 @@ func _xr_begun() -> void:
 	var rates: Array = xr_interface.get_available_display_refresh_rates()
 	if 72.0 in rates:
 		xr_interface.set_display_refresh_rate(72.0)
-	print("CHIKI XR refresh=",xr_interface.get_display_refresh_rate())
+	print("CHAYKA XR refresh=",xr_interface.get_display_refresh_rate())
 
 func _recenter() -> void:
 	stable_tracking = 0
@@ -168,7 +168,7 @@ func _process(delta: float) -> void:
 	fps_clock += delta
 	if fps_clock > 5:
 		fps_clock = 0
-		print("CHIKI FPS ",Engine.get_frames_per_second()," state=",rules.state," enemies=",rules.enemies.size()," hands=",tracking_ready)
+		print("CHAYKA FPS ",Engine.get_frames_per_second()," state=",rules.state," enemies=",rules.enemies.size()," hands=",tracking_ready)
 	menu_debounce = maxf(0,menu_debounce-delta)
 	toast_time = maxf(0,toast_time-delta)
 	if toast_time <= 0:
@@ -311,7 +311,7 @@ func _pause_input(sample: Array[Dictionary], input: Dictionary, delta: float) ->
 		paused = true
 		pause_hover = 0
 		show_menu("ПАУЗА")
-		print("CHIKI PAUSE deliberate_button")
+		print("CHAYKA PAUSE deliberate_button")
 
 func _add_button(id: String, caption: String, pos: Vector2, size: Vector2, color: Color) -> void:
 	Art.box(ui,Vector3(size.x+0.035,size.y+0.035,0.03),Vector3(pos.x,pos.y,0.08),Art.INK)
@@ -656,4 +656,4 @@ func _capture(filename: String) -> void:
 	await RenderingServer.frame_post_draw
 	var image := get_viewport().get_texture().get_image()
 	image.save_png("res://qa/"+filename+".png")
-	print("CHIKI CAPTURE ",filename)
+	print("CHAYKA CAPTURE ",filename)

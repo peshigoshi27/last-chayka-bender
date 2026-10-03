@@ -1,12 +1,12 @@
-# The Last Chikiya Bender
+# Last Chayka Bender
 
 **Спасението на Деснислава — „Съдбата е в твоите ръце“**
 
-Основа на самостоятелна arcade игра за Meta Quest Pro. От версия 0.1.2 бялата сапунена пяна излиза директно от дясната ръка, без видима помпа или тръба. Управлението е само с проследени ръце. Godot 4.7.2 + OpenXR Vendors; отделен package `com.vrvarna.chikibender`, без промени по GTA HUB VR.
+Основа на самостоятелна arcade игра за Meta Quest Pro. От версия 0.1.2 бялата сапунена пяна излиза директно от дясната ръка, без видима помпа или тръба. Управлението е само с проследени ръце. Godot 4.7.2 + OpenXR Vendors; отделен package `com.vrvarna.lastchaykabender`, без промени по GTA HUB VR.
 
 ## Стартиране
 
-Готовият build е `build/ChikiBender-Quest.apk`. Това е подписан debug APK за локална инсталация, не публикувана Store версия.
+Готовият build е `build/LastChaykaBender-Quest.apk`. Това е подписан debug APK за локална инсталация, не публикувана Store версия.
 
 1. Включи hand tracking и Developer Mode на Quest Pro. Свържи USB и разреши USB debugging в каската.
 2. Стартирай `INSTALL.command` с двоен клик. Инсталира само новия package и отваря играта. При повече от едно ADB устройство скриптът отказва да избира произволно.

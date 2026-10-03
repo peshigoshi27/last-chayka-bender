@@ -44,14 +44,14 @@ void fragment() {
 	logo = Node3D.new()
 	add_child(logo)
 	logo.position.y = 0.42
-	var top := Art.label(logo,"THE LAST",Vector3(0,0.57,0.06),39,Art.CREAM,0.0031)
+	var top := Art.label(logo,"LAST",Vector3(0,0.57,0.06),39,Art.CREAM,0.0031)
 	top.outline_size = 6
-	for item in [["CHIKIYA",0.23,Art.CREAM],["BENDER",-0.18,Art.YELLOW]]:
+	for item in [["CHAYKA",0.23,Art.CREAM],["BENDER",-0.18,Art.YELLOW]]:
 		var shadow := Art.label(logo,item[0],Vector3(0.032,item[1]-0.039,0.025),106,Color("7f4337"),0.0046)
 		shadow.outline_size = 13
 		var text_node := Art.label(logo,item[0],Vector3(0,item[1],0.08),106,item[2],0.0046)
 		text_node.outline_size = 10
-		text_node.rotation.z = 0.025 if item[0]=="CHIKIYA" else -0.025
+		text_node.rotation.z = 0.025 if item[0]=="CHAYKA" else -0.025
 	Art.label(self,"СПАСЕНИЕТО НА ДЕСНИСЛАВА",Vector3(0,-0.055,0.1),31,Art.ORANGE,0.0028)
 	Art.label(self,"Съдбата е в твоите ръце",Vector3(0,-0.19,0.1),25,Art.CREAM,0.0026)
 	bubbles = MultiMeshInstance3D.new()
