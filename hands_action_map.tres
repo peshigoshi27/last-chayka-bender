@@ -1,0 +1,15 @@
+[gd_resource type="OpenXRActionMap" format=3]
+
+[sub_resource type="OpenXRAction" id="pose"]
+resource_name = "hand_pose"
+localized_name = "Hand pose"
+action_type = 3
+toplevel_paths = PackedStringArray("/user/hand/left", "/user/hand/right")
+
+[sub_resource type="OpenXRActionSet" id="hands"]
+resource_name = "hands"
+localized_name = "Hands"
+actions = [SubResource("pose")]
+
+[resource]
+action_sets = [SubResource("hands")]

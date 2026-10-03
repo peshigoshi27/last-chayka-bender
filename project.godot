@@ -1,0 +1,33 @@
+config_version=5
+
+[application]
+config/name="The Last Chikiya Bender"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+config/icon="res://icon.svg"
+boot_splash/show_image=false
+boot_splash/bg_color=Color(0,0,0,1)
+
+[display]
+window/size/viewport_width=1440
+window/size/viewport_height=900
+window/stretch/mode="canvas_items"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
+anti_aliasing/quality/msaa_3d=1
+environment/defaults/default_clear_color=Color(0,0,0,1)
+
+[xr]
+openxr/enabled=true
+openxr/reference_space=2
+openxr/foveation_level=2
+openxr/foveation_dynamic=true
+openxr/default_action_map="res://hands_action_map.tres"
+openxr/extensions/hand_tracking=true
+openxr/extensions/hand_tracking_unobstructed_data_source=true
+openxr/extensions/hand_tracking_controller_data_source=false
+openxr/extensions/meta/hand_tracking_aim=true
+shaders/enabled=true
