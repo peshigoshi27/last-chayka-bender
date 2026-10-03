@@ -18,4 +18,4 @@ addons/godotopenxrvendors/
 assets/*PROMPT*
 assets/game-concept*
 assets/characters.png*
-
+docs/images/*.import
