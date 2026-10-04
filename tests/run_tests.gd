@@ -256,12 +256,13 @@ func integration() -> void:
 	var main: Node = load("res://main.tscn").instantiate()
 	root.add_child(main)
 	main.save_scores = false
+	main.help_seen = true
 	await process_frame
 	main.set_process(false)
 	check(not main.ui.visible and not main.level.visible,"Runtime starts in black room without title or house")
 	for n in range(20):
 		main._process(0.05)
-	check(main.ui.visible and main.buttons.size()==2,"Animated title menu appears automatically without any tracked hands")
+	check(main.ui.visible and main.buttons.size()==3,"Animated title menu appears automatically without any tracked hands (start, sound, input switch)")
 	main.tracking_ready = true
 	main.menu_debounce = 0
 	var hit: Vector3 = main.ui.to_global(Vector3(0,-0.60,0.14))
@@ -287,6 +288,21 @@ func integration() -> void:
 	main._pause_input(pause_sample,{"pinch_right":true},0.016)
 	check(main.paused and main.ui.visible,"Intentional hover then pinch opens pause")
 	main._activate_button("continue")
+	var saved_state: String = main.rules.state
+	main.rules.state = "menu"
+	main.show_menu()
+	var was_keyboard: bool = main.desktop_play
+	main._activate_button("input")
+	check(main.desktop_play != was_keyboard,"Title button switches between hands and keyboard input")
+	main._activate_button("input")
+	check(main.desktop_play == was_keyboard and main.buttons.size()==3,"Input switch toggles back")
+	main.show_keyboard_help()
+	check(main.showing_help and main.buttons.size()==1 and main.buttons[0].id=="help_back","Keyboard tutorial shows a single back button")
+	main._activate_button("help_back")
+	check(not main.showing_help and main.ui.visible,"Keyboard tutorial returns to the menu")
+	main.rules.state = saved_state
+	main.paused = false
+	main.ui.visible = false
 	main.rules.shots.assign([{"id":1,"pos":Vector3(0,1,0),"vel":Vector3(0,0,-8),"liquid":true,"born":0.0},
 		{"id":2,"pos":Vector3(0.1,0.99,-0.2),"vel":Vector3(0,0,-8),"liquid":true,"born":0.02}])
 	main._sync_liquid()
@@ -303,6 +319,7 @@ func integration() -> void:
 	main._activate_button("start")
 	check(main.rules.health==100 and main.enemy_nodes.is_empty(),"Gesture restart clears enemies and restores health")
 	# Drive the actual XRServer sampling path using known raw joint poses.
+	main.desktop_play = false  # these checks drive real hand trackers
 	var trackers: Array[XRHandTracker] = []
 	for h in range(2):
 		var tracker := XRHandTracker.new()

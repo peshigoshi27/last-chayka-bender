@@ -3,6 +3,7 @@ const Rules = preload("res://scripts/rules.gd")
 const Gestures = preload("res://scripts/gestures.gd")
 const Art = preload("res://scripts/art.gd")
 const Hands = preload("res://scripts/hands.gd")
+const DesktopHands = preload("res://scripts/desktop_hands.gd")
 const EnemyModel = preload("res://scripts/enemy_model.gd")
 const TitleScreen = preload("res://scripts/title_screen.gd")
 const Sound = preload("res://scripts/sound.gd")
@@ -40,7 +41,12 @@ var toast_time := 0.0
 var menu_debounce := 0.0
 var hint_time := 0.0
 var best := 0
+var best_endless := 0
 var desktop_demo := false
+var desktop_play := false
+var desktop_hands: RefCounted
+var help_seen := false
+var showing_help := false
 var qa_capture := false
 var demo_stage := 0
 var demo_time := 0.0
@@ -55,13 +61,18 @@ var pause_hover := 0.0
 var pressure_fill: MeshInstance3D
 var title_revealed := false
 
+var house_node: Node3D
+
 func _ready() -> void:
 	# Desktop automation is explicitly gated off on Android. Shipping input is hands only.
 	desktop_demo = not OS.has_feature("android") and "--demo" in OS.get_cmdline_user_args()
 	qa_capture = not OS.has_feature("android") and "--capture" in OS.get_cmdline_user_args()
+	desktop_play = not OS.has_feature("android") and "--play" in OS.get_cmdline_user_args()
+	desktop_hands = DesktopHands.new()
 	var config := ConfigFile.new()
 	if config.load("user://scores.cfg") == OK:
 		best = int(config.get_value("arcade","best",0))
+		best_endless = int(config.get_value("arcade","endless_best",0))
 	xr_origin = XROrigin3D.new()
 	add_child(xr_origin)
 	camera = XRCamera3D.new()
@@ -71,7 +82,7 @@ func _ready() -> void:
 	camera.fov = 85
 	camera.position.y = 1.6
 	xr_interface = XRServer.find_interface("OpenXR") as OpenXRInterface
-	if not desktop_demo and xr_interface and (xr_interface.is_initialized() or xr_interface.initialize()):
+	if not desktop_demo and not desktop_play and xr_interface and (xr_interface.is_initialized() or xr_interface.initialize()):
 		get_viewport().use_xr = true
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 		camera.position = Vector3.ZERO
@@ -83,14 +94,17 @@ func _ready() -> void:
 			xr_interface.pose_recentered.connect(_recenter)
 		print("CHAYKA XR READY hands-only")
 	else:
-		print("CHAYKA DESKTOP " + ("DEMO" if desktop_demo else "NO XR - WAITING FOR HANDS"))
+		# Without a headset there are no tracked hands, so a flat-screen desktop plays by keyboard.
+		if not desktop_demo and not OS.has_feature("android"):
+			desktop_play = true
+		print("CHAYKA DESKTOP " + ("DEMO" if desktop_demo else ("PLAY mouse+keyboard" if desktop_play else "NO XR - WAITING FOR HANDS")))
 	hands = Hands.new()
 	hands.origin = xr_origin
 	add_child(hands)
 	audio = Sound.new()
 	add_child(audio)
 	add_child(level)
-	Art.new().build_house(level)
+	house_node = Art.new().build_house(level)
 	level.visible = false
 	var desni := Art.character(level,3,1.6)
 	desni.position = Vector3(-1.6,0.86,2.68)
@@ -176,6 +190,10 @@ func _process(delta: float) -> void:
 	var sample: Array[Dictionary] = hands.sample()
 	if desktop_demo:
 		sample = _demo_hands()
+		for h in range(2):
+			hands.visualize(h,sample[h])
+	elif desktop_play:
+		sample = desktop_hands.update(delta,camera,get_viewport())
 		for h in range(2):
 			hands.visualize(h,sample[h])
 	var right_tracked: bool = sample[1].get("valid",false)
@@ -266,6 +284,7 @@ func _anchor_ui() -> void:
 
 func show_menu(heading: String = "") -> void:
 	_clear_ui()
+	showing_help = false
 	_anchor_ui()
 	ui.visible = true
 	shield_visual.visible = false
@@ -278,8 +297,16 @@ func show_menu(heading: String = "") -> void:
 		menu_debounce = 1.4
 		Art.label(ui,"Бавно движение ↑↓ зарежда налягането",Vector3(0,-0.38,0.12),24,Art.CREAM)
 		_add_button("start","В БОЯ",Vector2(0,-0.60),Vector2(1.50,0.27),Art.ORANGE)
-		_add_button("sound","ЗВУК: " + ("ДА" if audio.enabled else "НЕ"),Vector2(0,-0.92),Vector2(0.85,0.16),Color("9bbdc0"))
-		Art.label(ui,"Насочи и щипни   •   Рекорд: %d" % best,Vector3(0,-1.08,0.12),20,Art.CREAM)
+		_add_button("endless","БЕЗКРАЙНО  •  рекорд %d" % best_endless,Vector2(0,-0.86),Vector2(1.50,0.17),Color("e8a87c"))
+		if _can_switch_input():
+			_add_button("sound","ЗВУК: " + ("ДА" if audio.enabled else "НЕ"),Vector2(-0.70,-1.06),Vector2(0.85,0.16),Color("9bbdc0"))
+			_add_button("input","ВХОД: " + ("КЛАВИАТУРА" if desktop_play else "РЪЦЕ"),Vector2(0.55,-1.06),Vector2(1.35,0.16),Color("c9b06f"))
+		else:
+			_add_button("sound","ЗВУК: " + ("ДА" if audio.enabled else "НЕ"),Vector2(0,-1.06),Vector2(0.85,0.16),Color("9bbdc0"))
+		if desktop_play:
+			Art.label(ui,"Мишка + ляв клик   •   H = помощ   •   K = ръце/клавиатура   •   Рекорд: %d" % best,Vector3(0,-1.22,0.12),19,Art.CREAM)
+		else:
+			Art.label(ui,"Насочи и щипни   •   Рекорд: %d" % best,Vector3(0,-1.22,0.12),20,Art.CREAM)
 		audio.play("title")
 	else:
 		menu_debounce = 0.65
@@ -287,6 +314,8 @@ func show_menu(heading: String = "") -> void:
 		Art.box(ui,Vector3(2.57,1.77,0.03),Vector3(0,0,0.04),Art.CREAM)
 		Art.label(ui,heading,Vector3(0,0.68,0.065),47,Art.ORANGE)
 		var instructions := "Десен юмрук ↑↓ → налягане и пяна\nБавно и ритмично → по-силна струя\n10 помпания → плътна струя  •  Лява длан → щит\nСреден пръст → ярост  •  Плясък → взрив"
+		if desktop_play:
+			instructions = "Space → помпа (задръж)  •  Мишка → прицел\nБавно и ритмично → по-силна струя\nF / десен бутон → щит  •  C → плясък\nT (задръж) → ярост  •  P / Esc → продължи  •  H → помощ"
 		Art.label(ui,instructions,Vector3(0,0.18,0.068),29,Art.INK)
 		_add_button("continue","ПРОДЪЛЖИ",Vector2(0,-0.30),Vector2(1.5,0.26),Art.ORANGE)
 		_add_button("sound","ЗВУК: " + ("ДА" if audio.enabled else "НЕ"),Vector2(0,-0.65),Vector2(1.10,0.20),Color("9bbdc0"))
@@ -364,7 +393,20 @@ func _activate_button(id: String) -> void:
 	menu_debounce = 0.5
 	gestures.reset_motion()
 	match id:
-		"start": start_game()
+		"start":
+			rules.endless = false
+			if desktop_play and not help_seen:
+				show_keyboard_help(true)
+			else:
+				start_game()
+		"endless":
+			rules.endless = true
+			if desktop_play and not help_seen:
+				show_keyboard_help(true)
+			else:
+				start_game()
+		"retry":
+			start_game()
 		"continue":
 			paused = false
 			ui.visible = false
@@ -372,6 +414,12 @@ func _activate_button(id: String) -> void:
 		"sound":
 			audio.enabled = not audio.enabled
 			show_menu("ПАУЗА" if paused else "")
+		"input":
+			_toggle_input(true)
+		"help_back":
+			show_menu("ПАУЗА" if paused else "")
+		"help_start":
+			start_game()
 		"menu":
 			rules.state = "menu"
 			paused = false
@@ -379,6 +427,75 @@ func _activate_button(id: String) -> void:
 			hud_label.text = ""
 			show_menu()
 	audio.play("menu")
+
+func _can_switch_input() -> bool:
+	return not OS.has_feature("android") and not desktop_demo and not get_viewport().use_xr
+
+func _toggle_input(menu_open: bool) -> void:
+	if not _can_switch_input():
+		return
+	desktop_play = not desktop_play
+	desktop_hands.reset()
+	gestures.reset_motion()
+	stable_tracking = 0
+	if menu_open:
+		if desktop_play and not help_seen:
+			show_keyboard_help()
+		else:
+			show_menu("ПАУЗА" if paused else "")
+	else:
+		toast("Вход: " + ("клавиатура и мишка" if desktop_play else "ръце"))
+
+func show_keyboard_help(play_after: bool = false) -> void:
+	_clear_ui()
+	_anchor_ui()
+	ui.visible = true
+	showing_help = true
+	help_seen = true
+	menu_debounce = 0.5
+	Art.box(ui,Vector3(2.65,1.95,0.06),Vector3.ZERO,Art.INK)
+	Art.box(ui,Vector3(2.57,1.87,0.03),Vector3(0,0,0.04),Art.CREAM)
+	Art.label(ui,"КЛАВИАТУРА И МИШКА",Vector3(0,0.78,0.065),44,Art.ORANGE)
+	var lines := "Мишка → прицел и менюта  •  Ляв клик → избор\n"
+	lines += "Space → помпа (задръж за непрекъснато)\n"
+	lines += "F или десен бутон (задръж) → щит\n"
+	lines += "C → плясък, взрив (иска 55 пяна)\n"
+	lines += "T (задръж) → среден пръст: повече пяна, по-ядосани врагове\n"
+	lines += "P или Esc → пауза  •  H → тази помощ  •  K → ръце/клавиатура\n"
+	lines += "Бавна, равна помпа → по-силна струя; 10 помпания → плътна"
+	Art.label(ui,lines,Vector3(0,0.20,0.068),27,Art.INK)
+	if play_after:
+		_add_button("help_start","ИГРАЙ",Vector2(0,-0.74),Vector2(1.2,0.22),Art.ORANGE)
+	else:
+		_add_button("help_back","НАЗАД",Vector2(0,-0.74),Vector2(1.2,0.22),Art.ORANGE)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if OS.has_feature("android") or desktop_demo:
+		return
+	var key := event as InputEventKey
+	if key == null or not key.pressed or key.echo:
+		return
+	var in_menu: bool = (rules.state == "menu" and not paused) or paused
+	match key.keycode:
+		KEY_K:
+			_toggle_input(in_menu and ui.visible)
+		KEY_H:
+			if desktop_play and ui.visible and in_menu:
+				if showing_help:
+					_activate_button("help_back")
+				else:
+					show_keyboard_help()
+		KEY_P, KEY_ESCAPE:
+			if not desktop_play:
+				return
+			if paused and not showing_help:
+				_activate_button("continue")
+			elif showing_help and paused:
+				_activate_button("help_back")
+			elif rules.state in ["playing","break"] and not paused:
+				paused = true
+				pause_hover = 0
+				show_menu("ПАУЗА")
 
 func start_game() -> void:
 	_clear_enemies()
@@ -511,7 +628,7 @@ func _sync_game(delta: float) -> void:
 			enemy_nodes.erase(id)
 	_sync_liquid()
 	_sync_batch(muck_batch,rules.muck)
-	var text := "ВЪЛНА %d / 5     ДОМ %d%%     ТОЧКИ %d\nПЯНА %d%%     НАЛЯГАНЕ %d%%     КОМБО x%d" % [rules.wave,rules.health,rules.score,rules.foam,rules.pressure,maxi(1,rules.combo)]
+	var text := "ВЪЛНА %s     ДОМ %d%%     ТОЧКИ %d\nПЯНА %d%%     НАЛЯГАНЕ %d%%     КОМБО x%d" % [("%d" % rules.wave) if rules.endless else ("%d / 5" % rules.wave),rules.health,rules.score,rules.foam,rules.pressure,maxi(1,rules.combo)]
 	if rules.pump_count < 10:
 		text += "\nПОМПАНЕ %d / 10" % rules.pump_count
 	if rules.overheated:
@@ -581,10 +698,14 @@ func _update_effects(delta: float) -> void:
 	effects = effects.filter(func(e: Dictionary) -> bool: return e.life>0)
 
 func show_result(won: bool) -> void:
-	best = maxi(best,rules.score)
+	if rules.endless:
+		best_endless = maxi(best_endless,rules.score)
+	else:
+		best = maxi(best,rules.score)
 	if not desktop_demo and save_scores:
 		var save := ConfigFile.new()
 		save.set_value("arcade","best",best)
+		save.set_value("arcade","endless_best",best_endless)
 		save.save("user://scores.cfg")
 	_clear_ui()
 	_anchor_ui()
@@ -594,8 +715,8 @@ func show_result(won: bool) -> void:
 	Art.box(ui,Vector3(2.5,1.5,0.05),Vector3.ZERO,Art.INK)
 	Art.box(ui,Vector3(2.42,1.42,0.035),Vector3(0,0,0.04),Art.CREAM)
 	Art.label(ui,"ДЕСНИСЛАВА Е СПАСЕНА!" if won else "ДОМЪТ ПАДНА…",Vector3(0,0.46,0.07),43,Art.ORANGE)
-	Art.label(ui,"Точки: %d  •  Рекорд: %d\nИзчистени: %d  •  Вълна: %d / 5" % [rules.score,best,rules.kills,rules.wave],Vector3(0,0.17,0.07),29,Art.INK)
-	_add_button("start","ОЩЕ ВЕДНЪЖ",Vector2(0,-0.18),Vector2(1.7,0.26),Art.ORANGE)
+	Art.label(ui,"Точки: %d  •  Рекорд: %d\nИзчистени: %d  •  Вълна: %s" % [rules.score,(best_endless if rules.endless else best),rules.kills,("%d" % rules.wave) if rules.endless else ("%d / 5" % rules.wave)],Vector3(0,0.17,0.07),29,Art.INK)
+	_add_button("retry","ОЩЕ ВЕДНЪЖ",Vector2(0,-0.18),Vector2(1.7,0.26),Art.ORANGE)
 	_add_button("menu","МЕНЮ",Vector2(0,-0.50),Vector2(1.2,0.20),Color("a2b96d"))
 
 func _demo_hands() -> Array[Dictionary]:

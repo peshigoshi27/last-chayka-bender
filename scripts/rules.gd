@@ -12,6 +12,7 @@ var pump_stream := 0.0
 var pump_idle := 0.0
 var state := "intro"
 var wave := 0
+var endless := false
 var health := 100.0
 var foam := 45.0
 var heat := 0.0
@@ -43,6 +44,7 @@ func _init(seed_value: int = 7349) -> void:
 func reset() -> void:
 	state = "playing"
 	wave = 0
+	Mutators.clear()
 	health = 100.0
 	foam = 45.0
 	heat = 0.0
@@ -68,14 +70,15 @@ func reset() -> void:
 
 func next_wave() -> void:
 	wave += 1
-	if wave > LAST_WAVE:
+	if wave > LAST_WAVE and not endless:
 		state = "victory"
 		event.emit("victory", {"score": score})
 		return
 	state = "playing"
-	remaining_spawns = 3 + wave * 2
+	remaining_spawns = 3 + mini(wave, 15) * 2
 	spawn_clock = 1.0
 	foam = minf(100.0, foam + 18)
+	Mutators.roll(wave)
 	event.emit("wave", {"wave": wave, "count": remaining_spawns})
 
 func set_aim(position: Vector3, direction: Vector3) -> void:
@@ -204,7 +207,7 @@ func tick(delta: float, paused: bool = false) -> void:
 		e.age += delta
 		e.flash = maxf(0, e.flash - delta)
 		e.slow = maxf(0, e.slow - delta)
-		var speed: float = e.speed * (1.55 if rage > 0 else 1.0) * (0.55 if e.slow > 0 else 1.0)
+		var speed: float = e.speed * (1.55 if rage > 0 else 1.0) * (0.55 if e.slow > 0 else 1.0) * Mutators.mod("enemy_speed", 1.0)
 		var p: Vector3 = e.pos
 		var target := Vector3(0, 0, 0.65)
 		var stop_to_throw: bool = e.kind == 2 and p.distance_to(target) < 4.5
@@ -234,8 +237,10 @@ func tick(delta: float, paused: bool = false) -> void:
 		var before: Vector3 = shot.pos
 		var step: float = minf(delta,shot.get("first_step",delta))
 		shot.erase("first_step")
-		shot.pos += shot.vel * step + GRAVITY * (0.5*step*step)
-		shot.vel += GRAVITY * step
+		var g: Vector3 = GRAVITY * float(Mutators.mod("gravity", 1.0))
+		var drift: Vector3 = Vector3(Mutators.mod("wind", Vector3.ZERO)) * sin(elapsed * 1.3)
+		shot.pos += shot.vel * step + g * (0.5*step*step) + drift * step
+		shot.vel += g * step
 		shot.life -= step
 		if shot.pos.y < 0.025:
 			shot.life = 0
@@ -254,6 +259,7 @@ func tick(delta: float, paused: bool = false) -> void:
 				e.flash = 0.15
 				e.slow = 1.0
 				shot.life = 0
+				Mutators.on_hit()
 				event.emit("hit", {"pos": closest, "critical": headshot})
 				if e.hp <= 0:
 					kill_enemy(e, headshot)
@@ -276,7 +282,7 @@ func tick(delta: float, paused: bool = false) -> void:
 	if enemies.is_empty() and remaining_spawns == 0:
 		muck.clear()
 		shots.clear()
-		if wave >= LAST_WAVE:
+		if wave >= LAST_WAVE and not endless:
 			state = "victory"
 			event.emit("victory", {"score": score})
 		else:
@@ -290,15 +296,15 @@ func spawn_enemy(forced_kind: int = -1) -> Dictionary:
 	var lane: int = rng.randi_range(0, 2)
 	var positions := [Vector3(-3.0, 0, -5.8), Vector3(0, 0, -7.0), Vector3(3.0, 0, -5.8)]
 	var size: float = 1.25 if kind == 1 else 1.0
-	var boss: bool = wave == LAST_WAVE and remaining_spawns == 1
+	var boss: bool = (wave == LAST_WAVE or (endless and wave % 5 == 0)) and remaining_spawns == 1
 	if boss:
 		size = 1.65
 		kind = 1
-	var hp: float = (3.0 if kind == 0 else 5.0) + wave * 0.4
+	var hp: float = (3.0 if kind == 0 else 5.0) + mini(wave, 15) * 0.4
 	if boss:
 		hp = 22.0
 	var e := {"id": next_id, "kind": kind, "pos": positions[lane], "hp": hp, "max_hp": hp,
-		"height": 1.55 * size, "scale": size, "speed": (0.50 if kind == 1 else 0.65) + wave * 0.045,
+		"height": 1.55 * size * Mutators.mod("enemy_scale", 1.0), "scale": size * Mutators.mod("enemy_scale", 1.0), "speed": (0.50 if kind == 1 else 0.65) + mini(wave, 20) * 0.045,
 		"slow": 0.0, "flash": 0.0, "death": 0.65, "age": 0.0, "throw_clock": 2.2, "boss": boss}
 	next_id += 1
 	enemies.append(e)
@@ -319,6 +325,7 @@ func kill_enemy(e: Dictionary, critical: bool) -> void:
 	event.emit("kill", {"pos": e.pos + Vector3(0, 1.2, 0), "points": points, "combo": combo})
 
 func damage(amount: float) -> void:
+	Mutators.break_combo()
 	health = maxf(0, health - amount)
 	combo = 0
 	event.emit("damage", {"amount": amount})
