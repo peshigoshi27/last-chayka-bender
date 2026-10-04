@@ -44,6 +44,8 @@ var best := 0
 var desktop_demo := false
 var desktop_play := false
 var desktop_hands: RefCounted
+var help_seen := false
+var showing_help := false
 var qa_capture := false
 var demo_stage := 0
 var demo_time := 0.0
@@ -88,6 +90,9 @@ func _ready() -> void:
 			xr_interface.pose_recentered.connect(_recenter)
 		print("CHAYKA XR READY hands-only")
 	else:
+		# Without a headset there are no tracked hands, so a flat-screen desktop plays by keyboard.
+		if not desktop_demo and not OS.has_feature("android"):
+			desktop_play = true
 		print("CHAYKA DESKTOP " + ("DEMO" if desktop_demo else ("PLAY mouse+keyboard" if desktop_play else "NO XR - WAITING FOR HANDS")))
 	hands = Hands.new()
 	hands.origin = xr_origin
@@ -275,6 +280,7 @@ func _anchor_ui() -> void:
 
 func show_menu(heading: String = "") -> void:
 	_clear_ui()
+	showing_help = false
 	_anchor_ui()
 	ui.visible = true
 	shield_visual.visible = false
@@ -287,8 +293,15 @@ func show_menu(heading: String = "") -> void:
 		menu_debounce = 1.4
 		Art.label(ui,"Бавно движение ↑↓ зарежда налягането",Vector3(0,-0.38,0.12),24,Art.CREAM)
 		_add_button("start","В БОЯ",Vector2(0,-0.60),Vector2(1.50,0.27),Art.ORANGE)
-		_add_button("sound","ЗВУК: " + ("ДА" if audio.enabled else "НЕ"),Vector2(0,-0.92),Vector2(0.85,0.16),Color("9bbdc0"))
-		Art.label(ui,"Насочи и щипни   •   Рекорд: %d" % best,Vector3(0,-1.08,0.12),20,Art.CREAM)
+		if _can_switch_input():
+			_add_button("sound","ЗВУК: " + ("ДА" if audio.enabled else "НЕ"),Vector2(-0.70,-0.92),Vector2(0.85,0.16),Color("9bbdc0"))
+			_add_button("input","ВХОД: " + ("КЛАВИАТУРА" if desktop_play else "РЪЦЕ"),Vector2(0.55,-0.92),Vector2(1.35,0.16),Color("c9b06f"))
+		else:
+			_add_button("sound","ЗВУК: " + ("ДА" if audio.enabled else "НЕ"),Vector2(0,-0.92),Vector2(0.85,0.16),Color("9bbdc0"))
+		if desktop_play:
+			Art.label(ui,"Мишка + ляв клик   •   H = помощ   •   K = ръце/клавиатура   •   Рекорд: %d" % best,Vector3(0,-1.08,0.12),19,Art.CREAM)
+		else:
+			Art.label(ui,"Насочи и щипни   •   Рекорд: %d" % best,Vector3(0,-1.08,0.12),20,Art.CREAM)
 		audio.play("title")
 	else:
 		menu_debounce = 0.65
@@ -296,6 +309,8 @@ func show_menu(heading: String = "") -> void:
 		Art.box(ui,Vector3(2.57,1.77,0.03),Vector3(0,0,0.04),Art.CREAM)
 		Art.label(ui,heading,Vector3(0,0.68,0.065),47,Art.ORANGE)
 		var instructions := "Десен юмрук ↑↓ → налягане и пяна\nБавно и ритмично → по-силна струя\n10 помпания → плътна струя  •  Лява длан → щит\nСреден пръст → ярост  •  Плясък → взрив"
+		if desktop_play:
+			instructions = "Space → помпа (задръж)  •  Мишка → прицел\nБавно и ритмично → по-силна струя\nF / десен бутон → щит  •  C → плясък\nT (задръж) → ярост  •  P / Esc → продължи  •  H → помощ"
 		Art.label(ui,instructions,Vector3(0,0.18,0.068),29,Art.INK)
 		_add_button("continue","ПРОДЪЛЖИ",Vector2(0,-0.30),Vector2(1.5,0.26),Art.ORANGE)
 		_add_button("sound","ЗВУК: " + ("ДА" if audio.enabled else "НЕ"),Vector2(0,-0.65),Vector2(1.10,0.20),Color("9bbdc0"))
@@ -373,7 +388,11 @@ func _activate_button(id: String) -> void:
 	menu_debounce = 0.5
 	gestures.reset_motion()
 	match id:
-		"start": start_game()
+		"start":
+			if desktop_play and not help_seen:
+				show_keyboard_help(true)
+			else:
+				start_game()
 		"continue":
 			paused = false
 			ui.visible = false
@@ -381,6 +400,12 @@ func _activate_button(id: String) -> void:
 		"sound":
 			audio.enabled = not audio.enabled
 			show_menu("ПАУЗА" if paused else "")
+		"input":
+			_toggle_input(true)
+		"help_back":
+			show_menu("ПАУЗА" if paused else "")
+		"help_start":
+			start_game()
 		"menu":
 			rules.state = "menu"
 			paused = false
@@ -388,6 +413,75 @@ func _activate_button(id: String) -> void:
 			hud_label.text = ""
 			show_menu()
 	audio.play("menu")
+
+func _can_switch_input() -> bool:
+	return not OS.has_feature("android") and not desktop_demo and not get_viewport().use_xr
+
+func _toggle_input(menu_open: bool) -> void:
+	if not _can_switch_input():
+		return
+	desktop_play = not desktop_play
+	desktop_hands.reset()
+	gestures.reset_motion()
+	stable_tracking = 0
+	if menu_open:
+		if desktop_play and not help_seen:
+			show_keyboard_help()
+		else:
+			show_menu("ПАУЗА" if paused else "")
+	else:
+		toast("Вход: " + ("клавиатура и мишка" if desktop_play else "ръце"))
+
+func show_keyboard_help(play_after: bool = false) -> void:
+	_clear_ui()
+	_anchor_ui()
+	ui.visible = true
+	showing_help = true
+	help_seen = true
+	menu_debounce = 0.5
+	Art.box(ui,Vector3(2.65,1.95,0.06),Vector3.ZERO,Art.INK)
+	Art.box(ui,Vector3(2.57,1.87,0.03),Vector3(0,0,0.04),Art.CREAM)
+	Art.label(ui,"КЛАВИАТУРА И МИШКА",Vector3(0,0.78,0.065),44,Art.ORANGE)
+	var lines := "Мишка → прицел и менюта  •  Ляв клик → избор\n"
+	lines += "Space → помпа (задръж за непрекъснато)\n"
+	lines += "F или десен бутон (задръж) → щит\n"
+	lines += "C → плясък, взрив (иска 55 пяна)\n"
+	lines += "T (задръж) → среден пръст: повече пяна, по-ядосани врагове\n"
+	lines += "P или Esc → пауза  •  H → тази помощ  •  K → ръце/клавиатура\n"
+	lines += "Бавна, равна помпа → по-силна струя; 10 помпания → плътна"
+	Art.label(ui,lines,Vector3(0,0.20,0.068),27,Art.INK)
+	if play_after:
+		_add_button("help_start","ИГРАЙ",Vector2(0,-0.74),Vector2(1.2,0.22),Art.ORANGE)
+	else:
+		_add_button("help_back","НАЗАД",Vector2(0,-0.74),Vector2(1.2,0.22),Art.ORANGE)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if OS.has_feature("android") or desktop_demo:
+		return
+	var key := event as InputEventKey
+	if key == null or not key.pressed or key.echo:
+		return
+	var in_menu: bool = (rules.state == "menu" and not paused) or paused
+	match key.keycode:
+		KEY_K:
+			_toggle_input(in_menu and ui.visible)
+		KEY_H:
+			if desktop_play and ui.visible and in_menu:
+				if showing_help:
+					_activate_button("help_back")
+				else:
+					show_keyboard_help()
+		KEY_P, KEY_ESCAPE:
+			if not desktop_play:
+				return
+			if paused and not showing_help:
+				_activate_button("continue")
+			elif showing_help and paused:
+				_activate_button("help_back")
+			elif rules.state in ["playing","break"] and not paused:
+				paused = true
+				pause_hover = 0
+				show_menu("ПАУЗА")
 
 func start_game() -> void:
 	_clear_enemies()

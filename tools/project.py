@@ -93,6 +93,12 @@ def engine():
     return tool("godot")
 
 
+def ensure_imported():
+    """A fresh checkout has no imported assets; running without them gives a black screen."""
+    if not (ROOT / ".godot/imported").is_dir():
+        run([engine(), "--headless", "--xr-mode", "off", "--path", ".", "--editor", "--import", "--quit"])
+
+
 def test():
     godot = engine()
     (ROOT / "qa").mkdir(exist_ok=True)
@@ -136,8 +142,10 @@ def main():
     elif args.command == "test":
         test()
     elif args.command == "preview":
+        ensure_imported()
         run([engine(), "--xr-mode", "off", "--path", ".", "--", "--demo"])
     elif args.command == "play":
+        ensure_imported()
         run([engine(), "--xr-mode", "off", "--path", ".", "--", "--play"])
     elif args.command == "build":
         test()

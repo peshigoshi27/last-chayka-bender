@@ -9,6 +9,7 @@ extends RefCounted
 ##   F or Right btn  open left palm = shield
 ##   C               clap = blast (needs 55 foam)
 ##   T (hold)        middle finger taunt
+##   P / Esc         pause, resume    H  help    K  switch hands/keyboard
 const Gestures = preload("res://scripts/gestures.gd")
 const PUMP_TIME := 0.55
 const PUMP_HEIGHT := 0.10
@@ -19,6 +20,10 @@ const LEFT_REST := Vector3(-0.24, 1.22, -0.58)
 
 var pump_t := -1.0
 var clap_t := -1.0
+
+func reset() -> void:
+	pump_t = -1.0
+	clap_t = -1.0
 
 func update(delta: float, camera: Camera3D, viewport: Viewport) -> Array[Dictionary]:
 	var mouse: Vector2 = viewport.get_mouse_position()
