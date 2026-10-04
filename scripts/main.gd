@@ -41,6 +41,7 @@ var toast_time := 0.0
 var menu_debounce := 0.0
 var hint_time := 0.0
 var best := 0
+var best_endless := 0
 var desktop_demo := false
 var desktop_play := false
 var desktop_hands: RefCounted
@@ -60,6 +61,8 @@ var pause_hover := 0.0
 var pressure_fill: MeshInstance3D
 var title_revealed := false
 
+var house_node: Node3D
+
 func _ready() -> void:
 	# Desktop automation is explicitly gated off on Android. Shipping input is hands only.
 	desktop_demo = not OS.has_feature("android") and "--demo" in OS.get_cmdline_user_args()
@@ -69,6 +72,7 @@ func _ready() -> void:
 	var config := ConfigFile.new()
 	if config.load("user://scores.cfg") == OK:
 		best = int(config.get_value("arcade","best",0))
+		best_endless = int(config.get_value("arcade","endless_best",0))
 	xr_origin = XROrigin3D.new()
 	add_child(xr_origin)
 	camera = XRCamera3D.new()
@@ -100,7 +104,7 @@ func _ready() -> void:
 	audio = Sound.new()
 	add_child(audio)
 	add_child(level)
-	Art.new().build_house(level)
+	house_node = Art.new().build_house(level)
 	level.visible = false
 	var desni := Art.character(level,3,1.6)
 	desni.position = Vector3(-1.6,0.86,2.68)
@@ -293,15 +297,16 @@ func show_menu(heading: String = "") -> void:
 		menu_debounce = 1.4
 		Art.label(ui,"Бавно движение ↑↓ зарежда налягането",Vector3(0,-0.38,0.12),24,Art.CREAM)
 		_add_button("start","В БОЯ",Vector2(0,-0.60),Vector2(1.50,0.27),Art.ORANGE)
+		_add_button("endless","БЕЗКРАЙНО  •  рекорд %d" % best_endless,Vector2(0,-0.86),Vector2(1.50,0.17),Color("e8a87c"))
 		if _can_switch_input():
-			_add_button("sound","ЗВУК: " + ("ДА" if audio.enabled else "НЕ"),Vector2(-0.70,-0.92),Vector2(0.85,0.16),Color("9bbdc0"))
-			_add_button("input","ВХОД: " + ("КЛАВИАТУРА" if desktop_play else "РЪЦЕ"),Vector2(0.55,-0.92),Vector2(1.35,0.16),Color("c9b06f"))
+			_add_button("sound","ЗВУК: " + ("ДА" if audio.enabled else "НЕ"),Vector2(-0.70,-1.06),Vector2(0.85,0.16),Color("9bbdc0"))
+			_add_button("input","ВХОД: " + ("КЛАВИАТУРА" if desktop_play else "РЪЦЕ"),Vector2(0.55,-1.06),Vector2(1.35,0.16),Color("c9b06f"))
 		else:
-			_add_button("sound","ЗВУК: " + ("ДА" if audio.enabled else "НЕ"),Vector2(0,-0.92),Vector2(0.85,0.16),Color("9bbdc0"))
+			_add_button("sound","ЗВУК: " + ("ДА" if audio.enabled else "НЕ"),Vector2(0,-1.06),Vector2(0.85,0.16),Color("9bbdc0"))
 		if desktop_play:
-			Art.label(ui,"Мишка + ляв клик   •   H = помощ   •   K = ръце/клавиатура   •   Рекорд: %d" % best,Vector3(0,-1.08,0.12),19,Art.CREAM)
+			Art.label(ui,"Мишка + ляв клик   •   H = помощ   •   K = ръце/клавиатура   •   Рекорд: %d" % best,Vector3(0,-1.22,0.12),19,Art.CREAM)
 		else:
-			Art.label(ui,"Насочи и щипни   •   Рекорд: %d" % best,Vector3(0,-1.08,0.12),20,Art.CREAM)
+			Art.label(ui,"Насочи и щипни   •   Рекорд: %d" % best,Vector3(0,-1.22,0.12),20,Art.CREAM)
 		audio.play("title")
 	else:
 		menu_debounce = 0.65
@@ -389,10 +394,19 @@ func _activate_button(id: String) -> void:
 	gestures.reset_motion()
 	match id:
 		"start":
+			rules.endless = false
 			if desktop_play and not help_seen:
 				show_keyboard_help(true)
 			else:
 				start_game()
+		"endless":
+			rules.endless = true
+			if desktop_play and not help_seen:
+				show_keyboard_help(true)
+			else:
+				start_game()
+		"retry":
+			start_game()
 		"continue":
 			paused = false
 			ui.visible = false
@@ -614,7 +628,7 @@ func _sync_game(delta: float) -> void:
 			enemy_nodes.erase(id)
 	_sync_liquid()
 	_sync_batch(muck_batch,rules.muck)
-	var text := "ВЪЛНА %d / 5     ДОМ %d%%     ТОЧКИ %d\nПЯНА %d%%     НАЛЯГАНЕ %d%%     КОМБО x%d" % [rules.wave,rules.health,rules.score,rules.foam,rules.pressure,maxi(1,rules.combo)]
+	var text := "ВЪЛНА %s     ДОМ %d%%     ТОЧКИ %d\nПЯНА %d%%     НАЛЯГАНЕ %d%%     КОМБО x%d" % [("%d" % rules.wave) if rules.endless else ("%d / 5" % rules.wave),rules.health,rules.score,rules.foam,rules.pressure,maxi(1,rules.combo)]
 	if rules.pump_count < 10:
 		text += "\nПОМПАНЕ %d / 10" % rules.pump_count
 	if rules.overheated:
@@ -684,10 +698,14 @@ func _update_effects(delta: float) -> void:
 	effects = effects.filter(func(e: Dictionary) -> bool: return e.life>0)
 
 func show_result(won: bool) -> void:
-	best = maxi(best,rules.score)
+	if rules.endless:
+		best_endless = maxi(best_endless,rules.score)
+	else:
+		best = maxi(best,rules.score)
 	if not desktop_demo and save_scores:
 		var save := ConfigFile.new()
 		save.set_value("arcade","best",best)
+		save.set_value("arcade","endless_best",best_endless)
 		save.save("user://scores.cfg")
 	_clear_ui()
 	_anchor_ui()
@@ -697,8 +715,8 @@ func show_result(won: bool) -> void:
 	Art.box(ui,Vector3(2.5,1.5,0.05),Vector3.ZERO,Art.INK)
 	Art.box(ui,Vector3(2.42,1.42,0.035),Vector3(0,0,0.04),Art.CREAM)
 	Art.label(ui,"ДЕСНИСЛАВА Е СПАСЕНА!" if won else "ДОМЪТ ПАДНА…",Vector3(0,0.46,0.07),43,Art.ORANGE)
-	Art.label(ui,"Точки: %d  •  Рекорд: %d\nИзчистени: %d  •  Вълна: %d / 5" % [rules.score,best,rules.kills,rules.wave],Vector3(0,0.17,0.07),29,Art.INK)
-	_add_button("start","ОЩЕ ВЕДНЪЖ",Vector2(0,-0.18),Vector2(1.7,0.26),Art.ORANGE)
+	Art.label(ui,"Точки: %d  •  Рекорд: %d\nИзчистени: %d  •  Вълна: %s" % [rules.score,(best_endless if rules.endless else best),rules.kills,("%d" % rules.wave) if rules.endless else ("%d / 5" % rules.wave)],Vector3(0,0.17,0.07),29,Art.INK)
+	_add_button("retry","ОЩЕ ВЕДНЪЖ",Vector2(0,-0.18),Vector2(1.7,0.26),Art.ORANGE)
 	_add_button("menu","МЕНЮ",Vector2(0,-0.50),Vector2(1.2,0.20),Color("a2b96d"))
 
 func _demo_hands() -> Array[Dictionary]:
