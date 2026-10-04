@@ -3,6 +3,7 @@ const Rules = preload("res://scripts/rules.gd")
 const Gestures = preload("res://scripts/gestures.gd")
 const Art = preload("res://scripts/art.gd")
 const Hands = preload("res://scripts/hands.gd")
+const DesktopHands = preload("res://scripts/desktop_hands.gd")
 const EnemyModel = preload("res://scripts/enemy_model.gd")
 const TitleScreen = preload("res://scripts/title_screen.gd")
 const Sound = preload("res://scripts/sound.gd")
@@ -41,6 +42,8 @@ var menu_debounce := 0.0
 var hint_time := 0.0
 var best := 0
 var desktop_demo := false
+var desktop_play := false
+var desktop_hands: RefCounted
 var qa_capture := false
 var demo_stage := 0
 var demo_time := 0.0
@@ -59,6 +62,8 @@ func _ready() -> void:
 	# Desktop automation is explicitly gated off on Android. Shipping input is hands only.
 	desktop_demo = not OS.has_feature("android") and "--demo" in OS.get_cmdline_user_args()
 	qa_capture = not OS.has_feature("android") and "--capture" in OS.get_cmdline_user_args()
+	desktop_play = not OS.has_feature("android") and "--play" in OS.get_cmdline_user_args()
+	desktop_hands = DesktopHands.new()
 	var config := ConfigFile.new()
 	if config.load("user://scores.cfg") == OK:
 		best = int(config.get_value("arcade","best",0))
@@ -71,7 +76,7 @@ func _ready() -> void:
 	camera.fov = 85
 	camera.position.y = 1.6
 	xr_interface = XRServer.find_interface("OpenXR") as OpenXRInterface
-	if not desktop_demo and xr_interface and (xr_interface.is_initialized() or xr_interface.initialize()):
+	if not desktop_demo and not desktop_play and xr_interface and (xr_interface.is_initialized() or xr_interface.initialize()):
 		get_viewport().use_xr = true
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 		camera.position = Vector3.ZERO
@@ -83,7 +88,7 @@ func _ready() -> void:
 			xr_interface.pose_recentered.connect(_recenter)
 		print("CHAYKA XR READY hands-only")
 	else:
-		print("CHAYKA DESKTOP " + ("DEMO" if desktop_demo else "NO XR - WAITING FOR HANDS"))
+		print("CHAYKA DESKTOP " + ("DEMO" if desktop_demo else ("PLAY mouse+keyboard" if desktop_play else "NO XR - WAITING FOR HANDS")))
 	hands = Hands.new()
 	hands.origin = xr_origin
 	add_child(hands)
@@ -176,6 +181,10 @@ func _process(delta: float) -> void:
 	var sample: Array[Dictionary] = hands.sample()
 	if desktop_demo:
 		sample = _demo_hands()
+		for h in range(2):
+			hands.visualize(h,sample[h])
+	elif desktop_play:
+		sample = desktop_hands.update(delta,camera,get_viewport())
 		for h in range(2):
 			hands.visualize(h,sample[h])
 	var right_tracked: bool = sample[1].get("valid",false)

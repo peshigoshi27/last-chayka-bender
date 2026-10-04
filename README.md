@@ -44,6 +44,8 @@ python3 tools/project.py test
 python3 tools/project.py preview
 ```
 
+Игра без каска (мишка и клавиатура): `python3 tools/project.py play`. Мишка = прицел, ляв клик = щипване (менюта), Space = помпа (задръж за непрекъснато), F или десен бутон = щит, C = плясък, T (задръж) = среден пръст. Само за разработка на работния плот; на Quest играта чете ръцете.
+
 На Windows използвай `python` вместо `python3` и `$env:GODOT="C:\path\Godot.exe"` в PowerShell. Desktop preview е автоматична демонстрация. Реалната игра чете проследените ръце на Quest.
 
 ## Построй APK

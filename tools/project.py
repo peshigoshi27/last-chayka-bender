@@ -129,7 +129,7 @@ def android_template():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["setup", "test", "preview", "build", "install"])
+    parser.add_argument("command", choices=["setup", "test", "preview", "play", "build", "install"])
     args = parser.parse_args()
     if args.command == "setup":
         setup()
@@ -137,6 +137,8 @@ def main():
         test()
     elif args.command == "preview":
         run([engine(), "--xr-mode", "off", "--path", ".", "--", "--demo"])
+    elif args.command == "play":
+        run([engine(), "--xr-mode", "off", "--path", ".", "--", "--play"])
     elif args.command == "build":
         test()
         android_template()
